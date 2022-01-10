@@ -2,7 +2,7 @@ import { getVoiceConnection } from "@discordjs/voice";
 import config from "config";
 import { Client } from "discord.js";
 import { joinChannel, SILENCE_FRAME } from "./utils";
-import { Join, Leave, Move, processJoin } from "./vc-events";
+import { Join, Leave, processJoin } from "./vc-events";
 
 const client = new Client({
   intents: ["GUILD_VOICE_STATES", "GUILD_MESSAGES", "GUILDS"],
@@ -84,7 +84,8 @@ client.on("voiceStateUpdate", (oldState, newState) => {
       newState.channel != null &&
       oldState.channelId !== newState.channelId
     ) {
-      Move(newState.guild, oldState.channel, newState.channel, newState.member);
+      Leave(newState.guild, oldState.channel, newState.member);
+      Join(newState.guild, newState.channel, newState.member);
     }
   }
 });

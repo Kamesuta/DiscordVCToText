@@ -151,16 +151,6 @@ export async function Join(
   await processJoin(connection);
 }
 
-export async function Move(
-  guild: Guild,
-  oldChannel: VoiceBasedChannel,
-  newChannel: VoiceBasedChannel,
-  member: GuildMember
-) {
-  await Leave(guild, oldChannel, member);
-  await Join(guild, newChannel, member);
-}
-
 export async function Leave(
   guild: Guild,
   channel: VoiceBasedChannel,
