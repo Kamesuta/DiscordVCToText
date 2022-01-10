@@ -5,3 +5,4 @@ sendChannel: "TEXT CHANNEL ID"
 sendThread: "Thread ID"
 threadChannel: "ID of channel with thread"
 enableElapsedTime: false
+inviteThreadOnSpeaking: false

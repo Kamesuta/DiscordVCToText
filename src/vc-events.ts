@@ -10,6 +10,7 @@ import {
   GuildMember,
   Snowflake,
   TextChannel,
+  ThreadChannel,
   VoiceBasedChannel,
 } from "discord.js";
 import fs from "fs";
@@ -19,6 +20,7 @@ import { getSpeechRecognition } from "./speech-recognition";
 import { joinChannel, SILENCE_FRAME } from "./utils";
 
 let recordingUsers: string[] = [];
+let sessionThread: ThreadChannel|null = null;
 
 async function getUser(userId: Snowflake) {
   const client = getClient();
@@ -34,12 +36,14 @@ export async function processJoin(connection: VoiceConnection | null) {
     console.log("Send silence packet: ", result);
 
     const startTime = Date.now();
-    
+    if (sessionThread) sessionThread.setArchived(true);
+    sessionThread = null;
+
     try {
       await entersState(connection, VoiceConnectionStatus.Ready, 20e3);
       const receiver = connection.receiver;
 
-      receiver.speaking.on("start", async (userId) => {
+      receiver.speaking.on("start", async (userId: string) => {
         if (recordingUsers.includes(userId)) {
           return;
         }
@@ -62,7 +66,7 @@ export async function processJoin(connection: VoiceConnection | null) {
         const endTime = Date.now();
         const elapsedTime = new Date(endTime - startTime);
         const elapsedTimeString = elapsedTime.toISOString().substring(11, 19);
-        const elapsed = (config.has('enableElapsedTime') && (config.get('enableElapsedTime') as boolean))
+        const elapsed = (config.has('enableElapsedTime') && config.get('enableElapsedTime') as boolean)
           ? `\`${elapsedTimeString}\` `
           : '';
 
@@ -71,24 +75,44 @@ export async function processJoin(connection: VoiceConnection | null) {
           `✅ ${elapsedTimeString} ${user?.tag} recognized speech: ${result.text} (${confidence}%)`
         );
         const message = `${elapsed}\`${user?.tag}\`: \`${result.text}\` (${confidence}%)`;
-        getClient()
-          .channels.fetch(config.get("sendChannel"))
-          .then((channel) => {
-            if (channel instanceof TextChannel) channel.send(message);
-          });
-
-        if (config.has("threadChannel") && config.get("sendThread")) {
+        if (config.has("sendChannel")) {
           getClient()
-            .channels.fetch(config.get("threadChannel"))
+            .channels.fetch(config.get("sendChannel"))
             .then((channel) => {
-              if (!(channel instanceof TextChannel)) return;
-              channel?.threads
-                .fetch(config.get("sendThread"))
-                .then((thread) => {
-                  if (!thread) return;
-                  thread?.send(message);
-                });
+              if (channel instanceof TextChannel) channel.send(message);
             });
+        }
+
+        const inviteThreadOnSpeaking = config.has("inviteThreadOnSpeaking") && config.get("inviteThreadOnSpeaking") as boolean
+        if (config.has("threadChannel")) {
+          if (sessionThread || config.has("sendThread")) {
+            getClient()
+              .channels.fetch(config.get("threadChannel"))
+              .then(async (channel) => {
+                if (!(channel instanceof TextChannel)) return;
+                const thread = sessionThread ?? await channel?.threads.fetch(config.get("sendThread"))
+                if (!thread) return;
+                if (inviteThreadOnSpeaking && sessionThread && user) sessionThread.members.add(user);
+                thread?.send(message);
+              });
+          } else {
+            getClient()
+            .channels.fetch(config.get("threadChannel"))
+            .then(async (channel) => {
+              if (channel instanceof TextChannel) {
+                const startDate = new Date(startTime).toISOString().replace(/T/, ' ').replace(/\..+/, '');
+                const startMessage = `💬 ${startDate}`;
+                const channelMessage = await channel.send(startMessage);
+                sessionThread = await channelMessage.startThread({
+                  name: startMessage.replace(/:/g, '-'),
+                  autoArchiveDuration: 60,
+                  reason: `💬 ${user?.tag} starts speaking`,
+                });
+                if (inviteThreadOnSpeaking && user) sessionThread.members.add(user);
+                sessionThread.send(message);
+              }
+            });
+          }
         }
       });
     } catch (error) {
@@ -163,6 +187,8 @@ export async function Leave(
       if (connection) {
         connection.disconnect();
       }
+      if (sessionThread) sessionThread.setArchived(true);
+      sessionThread = null;  
     }
   }
 }
