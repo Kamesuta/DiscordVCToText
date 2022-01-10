@@ -21,6 +21,7 @@ import { joinChannel, SILENCE_FRAME } from "./utils";
 
 let recordingUsers: string[] = [];
 let sessionThread: ThreadChannel|null = null;
+const voiceChannelId: string|null = config.has("voiceChannel") ? config.get("voiceChannel") : null;
 
 async function getUser(userId: Snowflake) {
   const client = getClient();
@@ -132,6 +133,12 @@ export async function Join(
   const joiningChannel = getVoiceConnection(guild.id);
   let connection: VoiceConnection | null = null;
   if (!joiningChannel) {
+    // 固定チャンネルID が有効
+    if (voiceChannelId) {
+      // 固定チャンネル以外なら何もしない
+      if (voiceChannelId !== channel.id)
+        return;
+    }  
     // どこにも参加していないので参加する
     connection = await joinChannel(channel);
   } else if (joiningChannel.joinConfig.channelId == channel.id) {
@@ -150,16 +157,8 @@ export async function Move(
   newChannel: VoiceBasedChannel,
   member: GuildMember
 ) {
-  console.log(
-    `Member ${member.user.tag} Moved to ${newChannel.name} in ${guild.name} from ${oldChannel.name}`
-  );
-
-  if (member.id == getClient().user?.id) {
-    const connection = getVoiceConnection(guild.id);
-    if (connection) {
-      await processJoin(connection);
-    }
-  }
+  await Leave(guild, oldChannel, member);
+  await Join(guild, newChannel, member);
 }
 
 export async function Leave(

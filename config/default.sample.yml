@@ -6,3 +6,4 @@ sendThread: "Thread ID"
 threadChannel: "ID of channel with thread"
 enableElapsedTime: false
 inviteThreadOnSpeaking: false
+voiceChannel: "VOICE CHANNEL ID if you want to use it on a fixed channel (or delete this)"
