@@ -33,6 +33,8 @@ export async function processJoin(connection: VoiceConnection | null) {
     const result = connection.playOpusPacket(SILENCE_FRAME);
     console.log("Send silence packet: ", result);
 
+    const startTime = Date.now();
+    
     try {
       await entersState(connection, VoiceConnectionStatus.Ready, 20e3);
       const receiver = connection.receiver;
@@ -57,11 +59,18 @@ export async function processJoin(connection: VoiceConnection | null) {
           return;
         }
 
+        const endTime = Date.now();
+        const elapsedTime = new Date(endTime - startTime);
+        const elapsedTimeString = elapsedTime.toISOString().substring(11, 19);
+        const elapsed = (config.has('enableElapsedTime') && (config.get('enableElapsedTime') as boolean))
+          ? `\`${elapsedTimeString}\` `
+          : '';
+
         const confidence = Math.floor(result.confidence * 100);
         console.log(
-          `✅ ${user?.tag} recognized speech: ${result.text} (${confidence}%)`
+          `✅ ${elapsedTimeString} ${user?.tag} recognized speech: ${result.text} (${confidence}%)`
         );
-        const message = `\`${user?.tag}\`: \`${result.text}\` (${confidence}%)`;
+        const message = `${elapsed}\`${user?.tag}\`: \`${result.text}\` (${confidence}%)`;
         getClient()
           .channels.fetch(config.get("sendChannel"))
           .then((channel) => {
